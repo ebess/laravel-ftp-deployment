@@ -1,0 +1,19 @@
+{
+  "name": "ebess/ftp-deployment",
+  "authors": [
+    {
+      "name": "Eduard Bess",
+      "email": "eduard.bess@gmail.com"
+    }
+  ],
+  "autoload": {
+    "psr-4": {
+      "Ebess\\": "src/Ebess"
+    }
+  },
+  "require": {
+    "illuminate/console": "5.1.*",
+    "illuminate/support": "5.1.*",
+    "guzzlehttp/guzzle": "5.*"
+  }
+}
