@@ -35,6 +35,11 @@ class DeployServerCommand extends Command
     /**
      * @var null|array
      */
+    protected $before = null;
+
+    /**
+     * @var null|array
+     */
     protected $excludes = null;
 
     /**
@@ -82,6 +87,7 @@ class DeployServerCommand extends Command
     private function setup()
     {
         $this->config = $this->configRepository['servers'][$this->argument('server')];
+        $this->before = $this->configRepository['before'];
         $this->includes = $this->configRepository['includes'];
         $this->excludes = $this->configRepository['excludes'];
         $this->disk = $this->storage->disk($this->config['disk']);
@@ -123,9 +129,12 @@ class DeployServerCommand extends Command
      */
     private function runGrunt()
     {
-        $this->info('run grunt scripts.');
+        $this->info('run commands before deloyment.');
 
-        exec('grunt');
+        foreach ($this->before as $cmd) {
+            $this->info('- ' . $cmd);
+            exec($cmd);
+        }
 
         return $this;
     }

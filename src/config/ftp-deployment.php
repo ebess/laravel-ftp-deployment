@@ -3,6 +3,12 @@
 return [
 
     /**
+     * command to run before starting the deployment
+     */
+    'before' => [
+    ],
+
+    /**
      * include paths to deployment
      */
     'includes' => [
