@@ -6,9 +6,9 @@ composer require ebess/ftp-deployment
 php artisan vendor:publish
 ```
 
-### Usage
--	Create a filesystem disk to deploy to in **config/filesystem.php**
-	```php
+### Setup
+Create a filesystem disk to deploy to in **config/filesystem.php**
+```php
     'disks' => [
       // ...
       'deployment' => [
@@ -22,9 +22,9 @@ php artisan vendor:publish
       ],
       // ...
     ]
-    ```
--	Adjust which files should be deployed and hooks in **config/ftp-deployment.php**
--	Deploy to server
-	```bash
-    php artisan deploy:server <servername> <--refresh=0> <--debug=1>
-    ```
+```
+Adjust which files should be deployed and hooks in **config/ftp-deployment.php**
+### Deploy to server
+```bash
+php artisan deploy:server <servername> <--refresh=0> <--debug=1>
+```
