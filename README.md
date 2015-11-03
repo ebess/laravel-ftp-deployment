@@ -28,3 +28,4 @@ Adjust which files should be deployed and hooks in **config/ftp-deployment.php**
 ```bash
 php artisan deploy:server <servername> <--refresh=0> <--debug=1>
 ```
+Use refresh to refresh the database migrations and run the seeders. If flag not set, only migration will be run.
