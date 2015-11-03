@@ -2,7 +2,7 @@
 
 ### Installation
 ```bash
-composer require ebess/ftp-deployment
+composer require ebess/laravel-ftp-deployment
 php artisan vendor:publish
 ```
 
