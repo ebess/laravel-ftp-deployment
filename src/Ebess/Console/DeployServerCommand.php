@@ -67,15 +67,15 @@ class DeployServerCommand extends Command
      */
     protected $purgeExcludes;
 
-	/**
-	 * code archive name
-	 */
-	const ARCHIVE_NAME = 'deploy.tar';
+    /**
+     * code archive name
+     */
+    const ARCHIVE_NAME = 'deploy.tar';
 
-	/**
-	 * php deployment script name
-	 */
-	const SCRIPT_NAME = 'deploy.php';
+    /**
+     * php deployment script name
+     */
+    const SCRIPT_NAME = 'deploy.php';
 
 
     /**
@@ -263,6 +263,18 @@ class DeployServerCommand extends Command
     }
 
     /**
+     * generates the php string for remote execution of commands
+     *
+     * @return string
+     */
+    private function getRemoteCommands()
+    {
+        return array_map(function($command) {
+            return 'exec(\'' . str_replace("'", "\\'", $command) . '\', $debug);';
+        }, $this->remote);
+    }
+
+    /**
      * return php deployment script code for unzipping archive and deleting old file
      *
      * @return string
@@ -278,48 +290,36 @@ class DeployServerCommand extends Command
         }
 
         return '
-			<?php
+            <?php
 
-			// vars
+            // vars
             $debug = [];
-			$archive = \''.static::ARCHIVE_NAME.'\';
+            $archive = \''.static::ARCHIVE_NAME.'\';
 
-			// delete old files
-			exec(\'ls -d -1 $PWD/** | egrep -v "(\'.__FILE__.\'$'.$excludeFromPurge.')" | xargs rm -rf\', $debug);
-			exec(\'ls -d -1 $PWD/.** | egrep -v "(/..?$)" | xargs rm -rf\', $debug);
+            // delete old files
+            exec(\'ls -d -1 $PWD/** | egrep -v "(\'.__FILE__.\'$'.$excludeFromPurge.')" | xargs rm -rf\', $debug);
+            exec(\'ls -d -1 $PWD/.** | egrep -v "(/..?$)" | xargs rm -rf\', $debug);
 
-			$exclude = \'(/\'.$archive.\'$|/public$)\';
-			exec(\'ls -d -1 $PWD/../** | egrep -v "\'.$exclude.\'" | xargs rm -rf\', $debug);
+            $exclude = \'(/\'.$archive.\'$|/public$)\';
+            exec(\'ls -d -1 $PWD/../** | egrep -v "\'.$exclude.\'" | xargs rm -rf\', $debug);
 
             // change dir
             chdir(\'..\');
 
-			// unzip deployment archive
-			exec(\'tar -xf $PWD/\' . $archive, $debug);
+            // unzip deployment archive
+            exec(\'tar -xf $PWD/\' . $archive, $debug);
 
             // run migrations
-			exec(\'' . $this->config['php-cli'] . ' artisan migrate' . ($this->option('refresh') ? ':refresh --seed':'') . ' --force\', $debug);
+            exec(\'' . $this->config['php-cli'] . ' artisan migrate' . ($this->option('refresh') ? ':refresh --seed':'') . ' --force\', $debug);
 
             // run custom commands
             ' . implode('', $this->getRemoteCommands()) . '
 
-			// delete archive & self
-			exec(\'rm -rf $PWD/\' . $archive, $debug);
+            // delete archive & self
+            exec(\'rm -rf $PWD/\' . $archive, $debug);
 
-			// output
-			echo json_encode($debug);
+            // output
+            echo json_encode($debug);
 		';
-    }
-
-    /**
-     * generates the php string for remote execution of commands
-     *
-     * @return string
-     */
-    private function getRemoteCommands()
-    {
-        return array_map(function($command) {
-            return 'exec(\'' . str_replace("'", "\\'", $command) . '\', $debug);';
-        }, $this->remote);
     }
 }
