@@ -8,7 +8,7 @@ class DeployServerCommand extends Command
     /**
      * @var string
      */
-    protected $signature = 'deploy:server {server}';
+    protected $signature = 'deploy:server {server} {--refresh=0} {--debug=1}';
 
     /**
      * The console command description.
@@ -57,6 +57,16 @@ class DeployServerCommand extends Command
 	 */
     protected $storage = null;
 
+    /**
+     * @var string[]
+     */
+    protected $remote;
+
+    /**
+     * @var string[]
+     */
+    protected $purgeExcludes;
+
 	/**
 	 * code archive name
 	 */
@@ -67,7 +77,8 @@ class DeployServerCommand extends Command
 	 */
 	const SCRIPT_NAME = 'deploy.php';
 
-	/**
+
+    /**
 	 * @param $configRepository
 	 * @param $filesystem
 	 * @param $storage
@@ -90,6 +101,8 @@ class DeployServerCommand extends Command
         $this->before = $this->configRepository['before'];
         $this->includes = $this->configRepository['includes'];
         $this->excludes = $this->configRepository['excludes'];
+        $this->remote = $this->configRepository['remote'];
+        $this->purgeExcludes = $this->configRepository['purge_excludes'];
         $this->disk = $this->storage->disk($this->config['disk']);
     }
 
@@ -111,7 +124,7 @@ class DeployServerCommand extends Command
         $this->info("server:\t" . $this->argument('server'));
         $this->info("");
 
-        $this->runGrunt();
+        $this->runBefore();
         $this->createArchive();
         $this->uploadFiles();
         $this->runDeploymentScript();
@@ -127,7 +140,7 @@ class DeployServerCommand extends Command
     /**
      * @return $this
      */
-    private function runGrunt()
+    private function runBefore()
     {
         $this->info('run commands before deloyment.');
 
@@ -148,7 +161,15 @@ class DeployServerCommand extends Command
 
         // call the deployment script
         $client = new Client();
-        $client->get($this->config['deploy-url'] . '/' . static::SCRIPT_NAME . '?archive=' . static::ARCHIVE_NAME);
+        $response = $client->get($this->config['deploy-url'] . '/' . static::SCRIPT_NAME . '?archive=' . static::ARCHIVE_NAME);
+
+        if ($this->option('debug')) {
+            $logs = json_decode($response->getBody(), true);
+            foreach ($logs as $log) {
+                $this->info("\t- $log");
+            }
+        }
+
 
         // delete the script itself
         $this->disk->delete('/public/' . static::SCRIPT_NAME);
@@ -248,25 +269,57 @@ class DeployServerCommand extends Command
      */
     private function getDeploymentCode()
     {
+        $excludeFromPurge = implode('|', array_map(function($path) {
+            return '/' . $path . '$';
+        }, $this->purgeExcludes));
+
+        if (!empty($excludeFromPurge)) {
+            $excludeFromPurge = '|' . $excludeFromPurge;
+        }
+
         return '
 			<?php
-			
-			// vars
-			$archive = \''.static::ARCHIVE_NAME.'\';
-			
-			// delete old files
-			exec(\'ls -d -1 $PWD/** | egrep -v "(\'.__FILE__.\'$)" | xargs rm -rf\');
-			exec(\'ls -d -1 $PWD/.** | egrep -v "(/..?$)" | xargs rm -rf\');
-			
-			$exclude = \'(/\'.$archive.\'$|/public$)\';
-			exec(\'ls -d -1 $PWD/../** | egrep -v "\'.$exclude.\'" | xargs rm -rf\');
-			
-			// unzip deployment archive
-			exec(\'tar -xf $PWD/../\' . $archive . \' -C ..\');
-			
-			// delete archive & self
-			exec(\'rm -rf $PWD/../\' . $archive);
-		';
 
+			// vars
+            $debug = [];
+			$archive = \''.static::ARCHIVE_NAME.'\';
+
+			// delete old files
+			exec(\'ls -d -1 $PWD/** | egrep -v "(\'.__FILE__.\'$'.$excludeFromPurge.')" | xargs rm -rf\', $debug);
+			exec(\'ls -d -1 $PWD/.** | egrep -v "(/..?$)" | xargs rm -rf\', $debug);
+
+			$exclude = \'(/\'.$archive.\'$|/public$)\';
+			exec(\'ls -d -1 $PWD/../** | egrep -v "\'.$exclude.\'" | xargs rm -rf\', $debug);
+
+            // change dir
+            chdir(\'..\');
+
+			// unzip deployment archive
+			exec(\'tar -xf $PWD/\' . $archive, $debug);
+
+            // run migrations
+			exec(\'' . $this->config['php-cli'] . ' artisan migrate' . ($this->option('refresh') ? ':refresh --seed':'') . ' --force\', $debug);
+
+            // run custom commands
+            ' . implode('', $this->getRemoteCommands()) . '
+
+			// delete archive & self
+			exec(\'rm -rf $PWD/\' . $archive, $debug);
+
+			// output
+			echo json_encode($debug);
+		';
+    }
+
+    /**
+     * generates the php string for remote execution of commands
+     *
+     * @return string
+     */
+    private function getRemoteCommands()
+    {
+        return array_map(function($command) {
+            return 'exec(\'' . str_replace("'", "\\'", $command) . '\', $debug);';
+        }, $this->remote);
     }
 }
