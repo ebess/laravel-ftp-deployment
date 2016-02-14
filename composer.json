@@ -12,8 +12,8 @@
     }
   },
   "require": {
-    "illuminate/console": "5.1.*",
-    "illuminate/support": "5.1.*",
+    "illuminate/console": "5.*",
+    "illuminate/support": "5.*",
     "guzzlehttp/guzzle": "5.*"
   }
 }
