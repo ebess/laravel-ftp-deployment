@@ -2,7 +2,7 @@
 
 ### Installation
 ```bash
-composer require zach2825/laravel-ftp-deployment
+composer require ebess/laravel-ftp-deployment
 php artisan vendor:publish
 ```
 
