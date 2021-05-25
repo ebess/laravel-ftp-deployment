@@ -24,5 +24,12 @@
   },
   "require-dev": {
     "roave/security-advisories": "dev-latest"
+  },
+  "extra": {
+    "laravel": {
+      "providers": [
+        "Ebess\\FtpDeploymentServiceProvider"
+      ]
+    }
   }
 }

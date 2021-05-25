@@ -21,6 +21,13 @@ class FtpDeploymentServiceProvider extends ServiceProvider
     protected function registerConfig()
     {
         $this->mergeConfigFrom($this->configPath(), 'ftp-deployment');
+
+        $this->publishes(
+                [
+                        $this->configPath() => config_path('ftp-deployment.php'),
+                ],
+                'ftp-deployment'
+        );
     }
 
     protected function registerCommands()
