@@ -1,4 +1,6 @@
-<?php namespace Ebess;
+<?php
+
+namespace Ebess;
 
 use Ebess\Console\DeployServerCommand;
 use Illuminate\Support\ServiceProvider;
@@ -12,10 +14,26 @@ class FtpDeploymentServiceProvider extends ServiceProvider
      */
     public function boot()
     {
-        $configPath = __DIR__ . '/../config/ftp-deployment.php';
-        $this->publishes([
-            $configPath => base_path('config/ftp-deployment.php')
-        ], 'ftp-deployment');
+        $this->registerConfig();
+        $this->registerCommands();
+    }
+
+    protected function registerConfig()
+    {
+        $this->mergeConfigFrom($this->configPath(), 'ftp-deployment');
+    }
+
+    protected function registerCommands()
+    {
+        if (!$this->app->runningInConsole()) {
+            return;
+        }
+
+        $this->commands(
+                [
+                        DeployServerCommand::class,
+                ]
+        );
     }
 
     /**
@@ -25,14 +43,28 @@ class FtpDeploymentServiceProvider extends ServiceProvider
      */
     public function register()
     {
-        $configPath = __DIR__ . '/../config/ftp-deployment.php';
-        $this->mergeConfigFrom($configPath, 'ftp-deployment');
+        $this->mergeConfigFrom($this->configPath(), 'ftp-deployment');
 
-        $this->app['command.ftp-deployment.server'] = $this->app->share(function ($app) {
-            return new DeployServerCommand($app['config']['ftp-deployment'], $app['files'], $app['filesystem']);
-        });
+        $this->app->singleton(
+                DeployServerCommand::class,
+                function ($app) {
+                    return new DeployServerCommand(
+                            config('ftp-deployment'),
+                            $app['files'],
+                            $app['filesystem']
+                    );
+                }
+        );
+    }
 
-        $this->commands('command.ftp-deployment.server');
+    /**
+     * Set the config path
+     *
+     * @return string
+     */
+    protected function configPath()
+    {
+        return __DIR__ . '/../config/ftp-deployment.php';
     }
 
     /**
@@ -42,7 +74,6 @@ class FtpDeploymentServiceProvider extends ServiceProvider
      */
     public function provides()
     {
-        return array('command.ftp-deployment.server');
+        return ['command.ftp-deployment.server'];
     }
-
 }
