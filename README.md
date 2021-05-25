@@ -1,10 +1,14 @@
 # Laravel 8 - FTP Deployment with WebHook
 
+### Notes:
+
+* https://laravel.com/docs/8.x/filesystem#ftp-driver-configuration
+
 ### Installation
 
 ```bash
 composer require zach2825/laravel-ftp-deployment
-php artisan vendor:publish
+php artisan vendor:publish --tag=ftp-deployment
 ```
 
 ### Setup
