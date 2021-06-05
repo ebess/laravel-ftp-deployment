@@ -229,39 +229,39 @@ class DeployServerCommand extends Command
         }
 
         return '
-            <?php
+<?php
 
-            // vars
-            $debug = [];
-            $archive = \'' . static::ARCHIVE_NAME . '\';
+// vars
+$debug = [];
+$archive = \'' . static::ARCHIVE_NAME . '\';
 
-            // delete old files
-            exec(\'ls -d -1 $PWD/** | egrep -v "(\'.__FILE__.\'$' . $excludeFromPurge . ')" | xargs rm -rf\', $debug);
-            exec(\'ls -d -1 $PWD/.** | egrep -v "(/..?$)" | xargs rm -rf\', $debug);
+// delete old files
+exec(\'ls -d -1 $PWD/** | egrep -v "(\'.__FILE__.\'$' . $excludeFromPurge . ')" | xargs rm -rf\', $debug);
+//exec(\'ls -d -1 $PWD/.** | egrep -v "(/..?$)" | xargs rm -rf\', $debug);
 
-            $exclude = \'(/\'.$archive.\'$|/public$)\';
-            exec(\'ls -d -1 $PWD/../** | egrep -v "\'.$exclude.\'" | xargs rm -rf\', $debug);
+$exclude = \'(/\'.$archive.\'$|/public$|/storage$)\';
+exec(\'ls -d -1 $PWD/../** | egrep -v "\'.$exclude.\'" | xargs rm -rf\', $debug);
 
-            // change dir
-            chdir(\'..\');
+// change dir
+chdir(\'..\');
 
-            // unzip deployment archive
-            exec(\'tar -xf $PWD/\' . $archive, $debug);
+// unzip deployment archive
+exec(\'tar -xf $PWD/\' . $archive, $debug);
 
-            // run migrations
-            exec(\'' . $this->config['php-cli'] . ' artisan migrate' . ($this->option(
+// run migrations
+exec(\'' . $this->config['php-cli'] . ' artisan migrate' . ($this->option(
                         'refresh'
                 ) ? ':fresh --seed' : '') . ' --force\', $debug);
 
-            // run custom commands
-            ' . implode('', $this->getRemoteCommands()) . '
+// run custom commands
+' . implode('', $this->getRemoteCommands()) . '
 
-            // delete archive & self
-            exec(\'rm -rf $PWD/\' . $archive, $debug);
+// delete archive & self
+exec(\'rm -rf $PWD/\' . $archive, $debug);
 
-            // output
-            echo json_encode($debug);
-		';
+// output
+echo json_encode($debug);
+';
     }
 
     /**

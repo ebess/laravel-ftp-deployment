@@ -41,11 +41,6 @@ return [
             'resources/views',
             'resources/lang',
             'routes',
-            'storage/app',
-            'storage/logs',
-            'storage/framework/cache',
-            'storage/framework/sessions',
-            'storage/framework/views',
             'vendor',
     ],
 
