@@ -184,9 +184,9 @@ class DeployServerCommand extends Command
             );
         }
 
-
-        exec('tar -czf ' . static::ARCHIVE_NAME . ' ' . $includes . ' ' . $excludes);
-        exec('mv ' . static::ARCHIVE_NAME . ' ' . storage_path('app'));
+        $command = sprintf("tar %s -czf %s %s", $excludes, static::ARCHIVE_NAME, $includes);
+        exec($command);
+        exec(sprintf("mv %s %s", static::ARCHIVE_NAME, storage_path('app')));
     }
 
     /**
