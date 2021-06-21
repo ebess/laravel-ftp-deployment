@@ -1,9 +1,14 @@
 {
-  "name": "ebess/laravel-ftp-deployment",
+  "name": "zach2825/laravel-ftp-deployment",
+  "license": "MIT",
   "authors": [
     {
       "name": "Eduard Bess",
       "email": "eduard.bess@gmail.com"
+    },
+    {
+      "name": "Zach Robichaud",
+      "email": "zach2825@gmail.com"
     }
   ],
   "autoload": {
@@ -12,8 +17,21 @@
     }
   },
   "require": {
-    "illuminate/console": "5.*",
-    "illuminate/support": "5.*",
-    "guzzlehttp/guzzle": "5.*"
+    "php": ">=7.4",
+    "laravel/framework": "^v7.0.0|^v8.0.0",
+    "illuminate/console": "^7.0|^8.0",
+    "illuminate/support": "^7.0|^8.0",
+    "illuminate/http": "^7.0|^8.0",
+    "league/flysystem-sftp": "^2.0.0"
+  },
+  "require-dev": {
+    "roave/security-advisories": "dev-latest"
+  },
+  "extra": {
+    "laravel": {
+      "providers": [
+        "Ebess\\FtpDeploymentServiceProvider"
+      ]
+    }
   }
 }

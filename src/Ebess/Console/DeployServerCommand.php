@@ -1,115 +1,90 @@
-<?php namespace Ebess\Console;
+<?php
 
-use GuzzleHttp\Client;
+namespace Ebess\Console;
+
+use Exception;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Http;
 
 class DeployServerCommand extends Command
 {
     /**
+     * code archive name
+     */
+    public const ARCHIVE_NAME = 'deploy.tar';
+    /**
+     * php deployment script name
+     */
+    public const SCRIPT_NAME = 'deploy.php';
+    /**
      * @var string
      */
     protected $signature = 'deploy:server {server} {--refresh=0} {--debug=1}';
-
     /**
      * The console command description.
      *
      * @var string
      */
     protected $description = 'Deploy to server.';
-
     /**
      * @var mixed
      */
-    protected $disk = null;
-
+    protected $disk;
     /**
      * @var null|array
      */
-    protected $config = null;
-
+    protected $config;
     /**
      * @var null|array
      */
-    protected $includes = null;
-
+    protected $includes;
     /**
      * @var null|array
      */
-    protected $before = null;
-
+    protected $before;
     /**
      * @var null|array
      */
-    protected $excludes = null;
-
+    protected $excludes;
     /**
      * @var mixed
      */
-    protected $filesystem = null;
-
+    protected $filesystem;
     /**
      * @var mixed
      */
-    protected $configRepository = null;
-
-	/**
-	 * @var mixed
-	 */
-    protected $storage = null;
-
+    protected $configRepository;
+    /**
+     * @var mixed
+     */
+    protected $storage;
     /**
      * @var string[]
      */
     protected $remote;
-
     /**
      * @var string[]
      */
     protected $purgeExcludes;
 
     /**
-     * code archive name
+     * @param $configRepository
+     * @param $filesystem
+     * @param $storage
      */
-    const ARCHIVE_NAME = 'deploy.tar';
-
-    /**
-     * php deployment script name
-     */
-    const SCRIPT_NAME = 'deploy.php';
-
-
-    /**
-	 * @param $configRepository
-	 * @param $filesystem
-	 * @param $storage
-	 */
     public function __construct($configRepository, $filesystem, $storage)
     {
         parent::__construct();
 
         $this->configRepository = $configRepository;
-        $this->filesystem = $filesystem;
-	    $this->storage = $storage;
-    }
-
-    /**
-     * setup needed instances
-     */
-    private function setup()
-    {
-        $this->config = $this->configRepository['servers'][$this->argument('server')];
-        $this->before = $this->configRepository['before'];
-        $this->includes = $this->configRepository['includes'];
-        $this->excludes = $this->configRepository['excludes'];
-        $this->remote = $this->configRepository['remote'];
-        $this->purgeExcludes = $this->configRepository['purge_excludes'];
-        $this->disk = $this->storage->disk($this->config['disk']);
+        $this->filesystem       = $filesystem;
+        $this->storage          = $storage;
     }
 
     /**
      * Execute the console command.
      *
-     * @return mixed
+     * @return int
      */
     public function handle()
     {
@@ -135,77 +110,200 @@ class DeployServerCommand extends Command
         $this->info('------------------------------------------------------------------------');
         $this->info('deployment done!');
         $this->info('------------------------------------------------------------------------');
+
+        return 0;
     }
 
     /**
-     * @return $this
+     * setup needed instances
      */
-    private function runBefore()
+    private function setup()
     {
-        $this->info('run commands before deloyment.');
+        $this->config        = $this->configRepository['servers'][$this->argument('server')];
+        $this->before        = $this->configRepository['before'];
+        $this->includes      = $this->configRepository['includes'];
+        $this->excludes      = $this->configRepository['excludes'];
+        $this->remote        = $this->configRepository['remote'];
+        $this->purgeExcludes = $this->configRepository['purge_excludes'];
+        $this->disk          = $this->storage->disk($this->config['disk']);
+    }
+
+    /**
+     * @return void
+     */
+    private function runBefore(): void
+    {
+        $this->info('run commands before deployment.');
 
         foreach ($this->before as $cmd) {
             $this->info('- ' . $cmd);
             exec($cmd);
         }
-
-        return $this;
     }
 
     /**
-     * @return $this
+     * create zip archive
+     * @return void
      */
-    private function runDeploymentScript()
+    private function createArchive(): void
     {
-        $this->info('run deployment on server.');
+        $this->info('building release zip.');
 
-        // call the deployment script
-        $client = new Client();
-        $response = $client->get($this->config['deploy-url'] . '/' . static::SCRIPT_NAME . '?archive=' . static::ARCHIVE_NAME);
-
-        if ($this->option('debug')) {
-            $logs = json_decode($response->getBody(), true);
-            foreach ($logs as $log) {
-                $this->info("\t- $log");
+        // delete old archive
+        if ($this->filesystem->isFile(storage_path('app/' . static::ARCHIVE_NAME))) {
+            try {
+                $this->filesystem->delete(storage_path('app/' . static::ARCHIVE_NAME));
+            } catch (Exception $e) {
+                $this->error('Ftp delete failed ' . $e->getMessage());
             }
         }
 
-
-        // delete the script itself
-        $this->disk->delete('/public/' . static::SCRIPT_NAME);
-
-        return $this;
+        // create new archive
+        $this->createTarArchive();
     }
 
     /**
-     * @return $this
+     * create the string to build the archive which will be uploaded
+     *
+     * @return void
      */
-    private function uploadFiles()
+    private function createTarArchive(): void
+    {
+        $includes = implode(" ", $this->includes);
+
+        $excludes = '';
+        if (is_array($this->excludes)) {
+            $excludes = implode(
+                    " ",
+                    array_map(
+                            function ($v) {
+                                return "--exclude=$v";
+                            },
+                            $this->excludes
+                    )
+            );
+        }
+
+        $command = sprintf("tar %s -czf %s %s", $excludes, static::ARCHIVE_NAME, $includes);
+        exec($command);
+        exec(sprintf("mv %s %s", static::ARCHIVE_NAME, storage_path('app')));
+    }
+
+    /**
+     * @return void
+     */
+    private function uploadFiles(): void
     {
         $this->info('upload to server.');
 
         $files = [
-            static::ARCHIVE_NAME => $this->filesystem->get(storage_path('app/' . static::ARCHIVE_NAME)),
-            'public/' . static::SCRIPT_NAME => $this->getDeploymentCode()
+                static::ARCHIVE_NAME            => $this->filesystem->get(storage_path('app/' . static::ARCHIVE_NAME)),
+                'public/' . static::SCRIPT_NAME => $this->getDeploymentCode(),
         ];
 
         // upload
         foreach ($files as $dst => $content) {
             $this->disk->put($dst, $content);
         }
-
-        return $this;
     }
 
     /**
-     * clean up after completion of the uploading
+     * return php deployment script code for unzipping archive and deleting old file
+     *
+     * @return string
      */
-    private function cleanUpAfter()
+    private function getDeploymentCode()
     {
-        $this->info('clean up after uploading.');
+        $excludeFromPurge = implode(
+                '|',
+                array_map(
+                        function ($path) {
+                            return '/' . $path . '$';
+                        },
+                        $this->purgeExcludes
+                )
+        );
 
-        // delete created archive
-        $this->filesystem->delete(storage_path('app/' . static::ARCHIVE_NAME));
+        if (!empty($excludeFromPurge)) {
+            $excludeFromPurge = '|' . $excludeFromPurge;
+        }
+
+        return '
+<?php
+
+// vars
+$debug = [];
+$archive = \'' . static::ARCHIVE_NAME . '\';
+
+// delete old files
+exec(\'ls -d -1 $PWD/** | egrep -v "(\'.__FILE__.\'$' . $excludeFromPurge . ')" | xargs rm -rf\', $debug);
+//exec(\'ls -d -1 $PWD/.** | egrep -v "(/..?$)" | xargs rm -rf\', $debug);
+
+$exclude = \'(/\'.$archive.\'$|/public$|/storage$)\';
+exec(\'ls -d -1 $PWD/../** | egrep -v "\'.$exclude.\'" | xargs rm -rf\', $debug);
+
+// change dir
+chdir(\'..\');
+
+// unzip deployment archive
+exec(\'tar -xf $PWD/\' . $archive, $debug);
+
+// run migrations
+exec(\'' . $this->config['php-cli'] . ' artisan migrate' . ($this->option(
+                        'refresh'
+                ) ? ':fresh --seed' : '') . ' --force\', $debug);
+
+// run custom commands
+' . implode('', $this->getRemoteCommands()) . '
+
+// delete archive & self
+exec(\'rm -rf $PWD/\' . $archive, $debug);
+
+// output
+echo json_encode($debug);
+';
+    }
+
+    /**
+     * generates the php string for remote execution of commands
+     *
+     * @return string[]
+     */
+    private function getRemoteCommands()
+    {
+        return array_map(
+                function ($command) {
+                    return 'exec(\'' . str_replace("'", "\\'", $command) . '\', $debug);';
+                },
+                $this->remote
+        );
+    }
+
+    /**
+     * @return void
+     */
+    private function runDeploymentScript(): void
+    {
+        $this->info('run deployment on server.');
+
+        // call the deployment script
+        $response = Http::get(
+                $this->config['deploy-url'] . '/' . static::SCRIPT_NAME . '?archive=' . static::ARCHIVE_NAME
+        );
+
+        if ($this->option('debug')) {
+            $this->info("\t- " . print_r($response->json(), true));
+        }
+
+
+        // delete the script itself
+        try {
+            $this->disk->delete('/public/' . static::SCRIPT_NAME);
+        } catch (Exception $e) {
+            // Can't delete the script. Empty it to avoid issues
+            $this->disk->put('/public/' . static::SCRIPT_NAME, 'All done');
+            $this->error('Ftp delete failed ' . $e->getMessage());
+        }
     }
 
     /**
@@ -221,105 +319,13 @@ class DeployServerCommand extends Command
     }
 
     /**
-     * create zip archive
-     * @return $this
+     * clean up after completion of the uploading
      */
-    private function createArchive()
+    private function cleanUpAfter()
     {
-        $this->info('building release zip.');
+        $this->info('clean up after uploading.');
 
-        // delete old archive
-        if ($this->filesystem->isFile(storage_path('app/' . static::ARCHIVE_NAME))) {
-            $this->filesystem->delete(storage_path('app/' . static::ARCHIVE_NAME));
-        }
-
-        // create new archive
-        $this->createTarArchive();
-
-        return $this;
-    }
-
-    /**
-     * create the string to build the archive which will be uploaded
-     *
-     * @return string
-     */
-    private function createTarArchive()
-    {
-        $includes = implode(" ", $this->includes);
-
-        $excludes = '';
-        if (is_array($this->excludes)) {
-            $excludes = implode(" ", array_map(function($v) {
-                return "--exclude=$v";
-            }, $this->excludes));
-        }
-
-
-        exec('tar -czf ' . static::ARCHIVE_NAME . ' '. $includes . ' ' . $excludes);
-        exec('mv ' . static::ARCHIVE_NAME . ' ' . storage_path('app'));
-
-        return $this;
-    }
-
-    /**
-     * generates the php string for remote execution of commands
-     *
-     * @return string
-     */
-    private function getRemoteCommands()
-    {
-        return array_map(function($command) {
-            return 'exec(\'' . str_replace("'", "\\'", $command) . '\', $debug);';
-        }, $this->remote);
-    }
-
-    /**
-     * return php deployment script code for unzipping archive and deleting old file
-     *
-     * @return string
-     */
-    private function getDeploymentCode()
-    {
-        $excludeFromPurge = implode('|', array_map(function($path) {
-            return '/' . $path . '$';
-        }, $this->purgeExcludes));
-
-        if (!empty($excludeFromPurge)) {
-            $excludeFromPurge = '|' . $excludeFromPurge;
-        }
-
-        return '
-            <?php
-
-            // vars
-            $debug = [];
-            $archive = \''.static::ARCHIVE_NAME.'\';
-
-            // delete old files
-            exec(\'ls -d -1 $PWD/** | egrep -v "(\'.__FILE__.\'$'.$excludeFromPurge.')" | xargs rm -rf\', $debug);
-            exec(\'ls -d -1 $PWD/.** | egrep -v "(/..?$)" | xargs rm -rf\', $debug);
-
-            $exclude = \'(/\'.$archive.\'$|/public$)\';
-            exec(\'ls -d -1 $PWD/../** | egrep -v "\'.$exclude.\'" | xargs rm -rf\', $debug);
-
-            // change dir
-            chdir(\'..\');
-
-            // unzip deployment archive
-            exec(\'tar -xf $PWD/\' . $archive, $debug);
-
-            // run migrations
-            exec(\'' . $this->config['php-cli'] . ' artisan migrate' . ($this->option('refresh') ? ':refresh --seed':'') . ' --force\', $debug);
-
-            // run custom commands
-            ' . implode('', $this->getRemoteCommands()) . '
-
-            // delete archive & self
-            exec(\'rm -rf $PWD/\' . $archive, $debug);
-
-            // output
-            echo json_encode($debug);
-		';
+        // delete created archive
+        $this->filesystem->delete(storage_path('app/' . static::ARCHIVE_NAME));
     }
 }
